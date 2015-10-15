@@ -4,7 +4,7 @@
     <groupId>com.devexperts.timetest</groupId>
     <artifactId>timetest</artifactId>
     <packaging>jar</packaging>
-    <version>0.9</version>
+    <version>1.0-SNAPSHOT</version>
     <name>time-test</name>
     <description>Utility for testing time-based functionality</description>
 
@@ -200,7 +200,7 @@
     <scm>
         <connection>scm:git:https://stash.in.devexperts.com/scm/dxlib/time-test.git</connection>
         <developerConnection>scm:git:ssh://git@stash.in.devexperts.com:7999/dxlib/time-test.git</developerConnection>
-        <tag>timetest-0.9</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <distributionManagement>
