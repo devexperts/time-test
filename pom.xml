@@ -1,11 +1,10 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.devexperts.timetest</groupId>
     <artifactId>timetest</artifactId>
     <packaging>jar</packaging>
-    <version>0.9-SNAPSHOT</version>
+    <version>0.9</version>
     <name>time-test</name>
     <description>Utility for testing time-based functionality</description>
 
@@ -201,7 +200,7 @@
     <scm>
         <connection>scm:git:https://stash.in.devexperts.com/scm/dxlib/time-test.git</connection>
         <developerConnection>scm:git:ssh://git@stash.in.devexperts.com:7999/dxlib/time-test.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>timetest-0.9</tag>
     </scm>
 
     <distributionManagement>
