@@ -1,10 +1,10 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.test;
 
 /*
  * #%L
- * time-test
+ * test
  * %%
- * Copyright (C) 2015 Devexperts, LLC
+ * Copyright (C) 2015 - 2016 Devexperts, LLC
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,29 +22,18 @@ package com.devexperts.timetest;
  * #L%
  */
 
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
+import com.devexperts.timetest.DummyTimeProvider;
 import org.junit.Test;
 
-/**
- * Tests for {@link com.devexperts.timetest.DummyTimeProvider}.
- */
-public class DummyTimeProviderTest {
+public class ConfigurationTest {
 
-    @Before
-    public void setUp() {
-        DummyTimeProvider.start();
-    }
-
-    @After
     public void tearDown() {
         DummyTimeProvider.reset();
     }
 
-    @Test(expected = UnsupportedOperationException.class)
-    public void shouldThrowExceptionOnTimeMillis() {
+    @Test
+    public void notProcessed() {
+        DummyTimeProvider.start();
         System.currentTimeMillis();
     }
 

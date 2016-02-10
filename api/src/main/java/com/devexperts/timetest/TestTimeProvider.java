@@ -32,7 +32,7 @@ import java.util.*;
 /**
  * Time provider for testing. You can manipulate with time to your notice.
  * Use {@link #start()} method to start using this provider and {@link #reset()} to reset time provider to default.
- *
+ * <p>
  * See tests for example.
  */
 public class TestTimeProvider extends TimeProvider {
@@ -296,6 +296,7 @@ public class TestTimeProvider extends TimeProvider {
     }
 
     private synchronized void waitUntilThreadsAreFrozen0(long timeout) {
+        Set<List<StackTraceElement>> threadsInWaitingStateStackTraces = new HashSet<>();
         // Store end time.
         final long endTime = System.currentTimeMillis() + timeout;
         // This map contains non-frozen threads with stack traces.
@@ -316,8 +317,10 @@ public class TestTimeProvider extends TimeProvider {
                         || threadState == Thread.State.NEW)
                     continue;
                 if (threadState == Thread.State.TIMED_WAITING) {
-                    logException.setStackTrace(e.getValue());
-                    LOG.warn("Thread in TIMED_WAITING state, see stack trace.", logException);
+                    if (threadsInWaitingStateStackTraces.add(Arrays.asList(e.getValue()))) {
+                        logException.setStackTrace(e.getValue());
+                        LOG.warn("Thread in TIMED_WAITING state, see stack trace.", logException);
+                    }
                     continue;
                 }
                 badThreads.put(e.getKey(), e.getValue());

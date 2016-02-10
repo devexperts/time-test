@@ -120,8 +120,6 @@ public abstract class TimeProvider {
      */
     public abstract void sleep(long millis) throws InterruptedException;
 
-    // ========== Utility methods ==========
-
     /**
      * @see Thread#sleep(long, int)
      */

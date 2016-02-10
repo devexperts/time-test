@@ -1,0 +1,8 @@
+Premain-Class: com.devexperts.timetest.TimeTestAgentRunner
+Can-Redefine-Classes: true
+Boot-Class-Path: ${agent.artifact.name}.jar
+
+Name: com/devexperts/timetest/
+Implementation-Title: ${agent.artifact.name}
+Implementation-Version: ${project.version}
+Implementation-Vendor: Devexperts LLC

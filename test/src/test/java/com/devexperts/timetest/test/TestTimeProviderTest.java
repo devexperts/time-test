@@ -1,10 +1,10 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.test;
 
 /*
  * #%L
- * time-test
+ * test
  * %%
- * Copyright (C) 2015 Devexperts, LLC
+ * Copyright (C) 2015 - 2016 Devexperts, LLC
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -23,10 +23,12 @@ package com.devexperts.timetest;
  */
 
 
+import com.devexperts.timetest.TestTimeProvider;
 import com.devexperts.util.UnsafeHolder;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 /**
  * Tests for {@link com.devexperts.timetest.TestTimeProvider}
@@ -41,9 +43,9 @@ public class TestTimeProviderTest {
     @Test
     public void testIncreaseAndSetTime() {
         TestTimeProvider.start(100);
-        Assert.assertEquals(100, System.currentTimeMillis());
+        assertEquals(100, System.currentTimeMillis());
         TestTimeProvider.increaseTime(50);
-        Assert.assertEquals(150, System.currentTimeMillis());
+        assertEquals(150, System.currentTimeMillis());
     }
 
     @Test(timeout = 1000)
@@ -86,7 +88,7 @@ public class TestTimeProviderTest {
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(100);
         TestTimeProvider.waitUntilThreadsAreFrozen(100);
-        Assert.assertFalse(failed[0]);
+        assertFalse(failed[0]);
     }
 
     @Test(timeout = 1000)
@@ -113,7 +115,7 @@ public class TestTimeProviderTest {
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         thread.interrupt();
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        Assert.assertFalse(failed[0]);
+        assertFalse(failed[0]);
     }
 
     @Test(timeout = 1000)
@@ -136,7 +138,7 @@ public class TestTimeProviderTest {
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(sleepTime);
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        Assert.assertFalse(failed[0]);
+        assertFalse(failed[0]);
     }
 
     @Test(timeout = 1000)
@@ -163,7 +165,7 @@ public class TestTimeProviderTest {
         });
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(1000);
-        Assert.assertTrue(shouldBeTrue[0]);
+        assertTrue(shouldBeTrue[0]);
     }
 
     @Test(timeout = 2000, expected = AssertionError.class)
@@ -201,7 +203,7 @@ public class TestTimeProviderTest {
         thread.start();
         thread.interrupt();
         thread.join();
-        Assert.assertTrue(isInterrupted[0]);
+        assertTrue(isInterrupted[0]);
     }
 
     @Test(timeout = 2000)
@@ -236,9 +238,9 @@ public class TestTimeProviderTest {
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(100);
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        Assert.assertTrue(shouldBeTrue[0]);
+        assertTrue(shouldBeTrue[0]);
         t1.interrupt();
-        Assert.assertFalse(failed[0]);
+        assertFalse(failed[0]);
     }
 
     @Test(timeout = 1000)
