@@ -9,10 +9,6 @@
 
     <artifactId>agent</artifactId>
 
-    <properties>
-        <maven.deploy.skip>false</maven.deploy.skip>
-    </properties>
-
     <build>
         <!-- DO NOT RENAME because of "Boot-Class-Path" section in MANIFEST.MF -->
         <finalName>${agent.artifact.name}</finalName>
@@ -68,11 +64,13 @@
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>core</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>transformer</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

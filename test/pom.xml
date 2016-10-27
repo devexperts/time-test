@@ -9,6 +9,10 @@
 
     <artifactId>test</artifactId>
 
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <build>
         <plugins>
             <!-- maven-dependency-plugin is used to copy "timetest" agent into target directory -->
@@ -39,7 +43,7 @@
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-javaagent:${project.build.directory}/${agent.artifact.name}.jar</argLine>
+                    <argLine>-javaagent:${project.build.directory}/${agent.artifact.name}.jar -Dtimetest.log.level=debug</argLine>
                 </configuration>
             </plugin>
         </plugins>
@@ -50,6 +54,12 @@
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>agent</artifactId>
             <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.devexperts.qd</groupId>
+            <artifactId>dxlib</artifactId>
+            <version>3.242</version>
             <scope>test</scope>
         </dependency>
         <dependency>

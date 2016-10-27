@@ -5,13 +5,7 @@
     <artifactId>timetest</artifactId>
     <packaging>pom</packaging>
     <version>1.1-SNAPSHOT</version>
-    <modules>
-        <module>core</module>
-        <module>agent</module>
-        <module>transformer</module>
-        <module>test</module>
-        <module>api</module>
-    </modules>
+
     <name>time-test</name>
     <description>Utility for testing time-based functionality</description>
 
@@ -24,13 +18,22 @@
     <properties>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <jagent.version>0.1</jagent.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <license.licenseName>gpl_v3</license.licenseName>
-        <lastCopyrightYear>2015</lastCopyrightYear>
+        <license.licenseName>lgpl_v3</license.licenseName>
+        <lastCopyrightYear>2016</lastCopyrightYear>
+
         <agent.artifact.name>timetest</agent.artifact.name>
-        <maven.deploy.skip>true</maven.deploy.skip>
+
+        <jagent.version>1.0</jagent.version>
     </properties>
+
+    <modules>
+        <module>core</module>
+        <module>agent</module>
+        <module>transformer</module>
+        <module>test</module>
+        <module>api</module>
+    </modules>
 
     <build>
         <!-- Define versions of all plugins -->
@@ -69,7 +72,7 @@
                 <plugin>
                     <groupId>com.devexperts.bintray</groupId>
                     <artifactId>bintray-maven-plugin</artifactId>
-                    <version>1.1</version>
+                    <version>1.3</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -187,15 +190,16 @@
     </pluginRepositories>
 
     <repositories>
+        <!-- For JAgent -->
+        <repository>
+            <id>bintray-devexperts-Maven</id>
+            <name>bintray</name>
+            <url>http://dl.bintray.com/devexperts/Maven</url>
+        </repository>
         <!-- For dxlib -->
         <repository>
             <id>maven-dxfeed-com</id>
             <url>http://maven.dxfeed.com/release</url>
-        </repository>
-        <!-- For JAgent -->
-        <repository>
-            <id>dxlib-incubator</id>
-            <url>https://maven.in.devexperts.com/content/repositories/dxlib-incubator/</url>
         </repository>
     </repositories>
 

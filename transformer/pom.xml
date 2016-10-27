@@ -9,6 +9,10 @@
 
     <artifactId>transformer</artifactId>
 
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.devexperts.jagent</groupId>

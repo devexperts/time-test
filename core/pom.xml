@@ -9,6 +9,10 @@
 
     <artifactId>core</artifactId>
 
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <build>
         <!-- Processes resources directory to replace Maven's variables to theirs values -->
         <resources>
@@ -43,13 +47,42 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.devexperts.jagent:jagent-api</include>
+                                    <include>com.devexperts.timetest:api</include>
+                                    <include>com.devexperts.qd:dxlib</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>com.devexperts.jagent.api</pattern>
-                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.jagent.api
-                                    </shadedPattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.jagent.api</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.annotation</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.annotation</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.io</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.io</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.logging</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.logging</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.management</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.management</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.monitoring</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.monitoring</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.services</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.services</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.devexperts.util</pattern>
+                                    <shadedPattern>com.devexperts.timetest.shaded.com.devexperts.util</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
