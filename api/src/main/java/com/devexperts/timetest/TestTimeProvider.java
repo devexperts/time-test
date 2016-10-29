@@ -28,6 +28,7 @@ import com.devexperts.logging.Logging;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Time provider for testing. You can manipulate with time to your notice.
@@ -50,7 +51,9 @@ public class TestTimeProvider extends TimeProvider {
     @GuardedBy("this")
     private final Set<Thread> waitingThreads = new HashSet<>();
     @GuardedBy("this")
-    private final Map<Object, Object> parkThreadOwners = new HashMap<>();
+    private final Set<Object> unparkedThreads = new HashSet<>();
+    @GuardedBy("this")
+    private final Map<Object, CountDownLatch> parkThreadOwners = new HashMap<>();
     @GuardedBy("this")
     private Set<Thread> threadsOnStart = new HashSet<>();
     @GuardedBy("this")
@@ -183,12 +186,18 @@ public class TestTimeProvider extends TimeProvider {
         long millis = time / 1_000_000;
         int nanos = (int) (time % 1_000_000);
         millis = checkTimeArgumentsAndGetMillis(millis, nanos);
-        Object owner = new Object();
+        CountDownLatch owner;
         synchronized (this) {
-            parkThreadOwners.put(Thread.currentThread(), owner);
+            Thread key = Thread.currentThread();
+            boolean unparkedAlready = unparkedThreads.remove(key);
+            if (unparkedAlready)
+                return;
+            owner = new CountDownLatch(1);
+            parkThreadOwners.put(key, owner);
         }
         try {
             synchronized (owner) {
+                owner.countDown();
                 waitOn0(owner, isAbsolute, millis);
             }
         } catch (InterruptedException e) {
@@ -198,14 +207,21 @@ public class TestTimeProvider extends TimeProvider {
 
     @Override
     public void unpark(Object thread) {
-        Object owner;
+        CountDownLatch owner;
         synchronized (this) {
             owner = parkThreadOwners.remove(thread);
-        }
-        if (owner != null) {
-            synchronized (owner) {
-                owner.notifyAll();
+            if (owner == null) {
+                unparkedThreads.add(thread);
+                return;
             }
+        }
+        try {
+            owner.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        synchronized (owner) {
+            owner.notifyAll();
         }
     }
 
@@ -213,7 +229,7 @@ public class TestTimeProvider extends TimeProvider {
 
     private synchronized void start0(long startTime) {
         threadsOnStart = Thread.getAllStackTraces().keySet();
-        waitingThreads.clear();
+        unparkedThreads.clear();
         parkThreadOwners.clear();
         setTime(startTime);
     }

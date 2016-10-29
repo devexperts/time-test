@@ -28,6 +28,8 @@ import com.devexperts.util.UnsafeHolder;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.Assert.*;
@@ -50,7 +52,7 @@ public class TestTimeProviderTest {
         assertEquals(150, System.currentTimeMillis());
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testWaitOnWakesUpByNotify() throws InterruptedException {
         TestTimeProvider.start();
         final Object monitor = new Object();
@@ -61,14 +63,14 @@ public class TestTimeProviderTest {
                     monitor.notifyAll();
                 }
             }
-        });
+        }, "TestThread");
         thread.start();
         synchronized (monitor) {
             monitor.wait(Long.MAX_VALUE);
         }
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testWaitOnWakesUpByTimeout() throws InterruptedException {
         TestTimeProvider.start();
         final boolean[] failed = {false};
@@ -85,7 +87,7 @@ public class TestTimeProviderTest {
                     }
                 }
             }
-        });
+        }, "TestThread");
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(100);
@@ -93,7 +95,7 @@ public class TestTimeProviderTest {
         assertFalse(failed[0]);
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testWaitOnWorksWithZeroArgument() throws InterruptedException {
         TestTimeProvider.start();
         final boolean[] failed = {false};
@@ -110,7 +112,7 @@ public class TestTimeProviderTest {
                     }
                 }
             }
-        });
+        }, "TestThread");
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(1);
@@ -120,7 +122,7 @@ public class TestTimeProviderTest {
         assertFalse(failed[0]);
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testSleep() throws InterruptedException {
         TestTimeProvider.start();
         final boolean[] failed = {false};
@@ -143,13 +145,13 @@ public class TestTimeProviderTest {
         assertFalse(failed[0]);
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testSleepWithZeroArgument() throws InterruptedException {
         TestTimeProvider.start();
         Thread.sleep(0);
     }
 
-    @Test(timeout = 2000)
+    @Test
     public void testWaitUntilThreadsFreeze() {
         TestTimeProvider.start();
         final boolean[] shouldBeTrue = {false};
@@ -170,7 +172,7 @@ public class TestTimeProviderTest {
         assertTrue(shouldBeTrue[0]);
     }
 
-    @Test(timeout = 2000, expected = AssertionError.class)
+    @Test(expected = AssertionError.class)
     public void testWaitUntilThreadsFreezeThrowsAssertionError() {
         TestTimeProvider.start();
         Thread thread = new Thread(new Runnable() {
@@ -188,7 +190,7 @@ public class TestTimeProviderTest {
         TestTimeProvider.waitUntilThreadsAreFrozen(10);
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void interruptionShouldNotBeIgnored() throws InterruptedException {
         TestTimeProvider.start();
         final boolean[] isInterrupted = {false};
@@ -208,7 +210,7 @@ public class TestTimeProviderTest {
         assertTrue(isInterrupted[0]);
     }
 
-    @Test(timeout = 2000)
+    @Test
     public void testWithSeveralThreads() throws InterruptedException {
         TestTimeProvider.start();
         final boolean[] failed = {false};
@@ -222,7 +224,7 @@ public class TestTimeProviderTest {
                     // ignored, done
                 }
             }
-        });
+        }, "TestThread_1");
         Thread t2 = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -234,7 +236,7 @@ public class TestTimeProviderTest {
                     failed[0] = false;
                 }
             }
-        });
+        }, "TestThread_2");
         t1.start();
         t2.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
@@ -245,7 +247,7 @@ public class TestTimeProviderTest {
         assertFalse(failed[0]);
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testUnsafePark() throws InterruptedException {
         TestTimeProvider.start();
         final Object owner = new Object();
@@ -257,7 +259,7 @@ public class TestTimeProviderTest {
                     owner.notifyAll();
                 }
             }
-        });
+        }, "TestThread");
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(100);
         synchronized (owner) {
@@ -266,7 +268,7 @@ public class TestTimeProviderTest {
         }
     }
 
-    @Test(timeout = 1000)
+    @Test
     public void testLockSupport() throws InterruptedException {
         TestTimeProvider.start();
         final Object owner = new Object();
@@ -278,12 +280,28 @@ public class TestTimeProviderTest {
                     owner.notifyAll();
                 }
             }
-        });
+        }, "TestThread");
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(100);
         synchronized (owner) {
             LockSupport.unpark(thread);
             owner.wait(Long.MAX_VALUE);
         }
+    }
+
+    @Test
+    public void testUnparkBeforePark() throws InterruptedException {
+        TestTimeProvider.start();
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                UnsafeHolder.UNSAFE.park(false, Long.MAX_VALUE);
+                countDownLatch.countDown();
+            }
+        }, "TestThread");
+        UnsafeHolder.UNSAFE.unpark(thread);
+        thread.start();
+        countDownLatch.await();
     }
 }
