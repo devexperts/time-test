@@ -69,6 +69,16 @@ public abstract class TimeProvider {
         }
 
         @Override
+        public void notifyAll(Object monitor) {
+            monitor.notifyAll();
+        }
+
+        @Override
+        public void notify(Object monitor) {
+            monitor.notify();
+        }
+
+        @Override
         public void park(boolean isAbsolute, long time) {
             UnsafeHolder.UNSAFE.park(isAbsolute, time);
         }
@@ -78,7 +88,30 @@ public abstract class TimeProvider {
             UnsafeHolder.UNSAFE.unpark(thread);
         }
     };
-    private static TimeProvider timeProvider = DEFAULT;
+    private volatile static TimeProvider timeProvider = DEFAULT;
+
+    // It is used for detection that we are executing in the test code,
+    // so the already defined {@link TimeProvider} should be used.
+    private static final ThreadLocal<Integer> testMethodsCallStackSize = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return 0;
+        }
+    };
+
+    /**
+     * Should be called as the first action of test code method
+     */
+    static void enterTestingCodeMethod() {
+        testMethodsCallStackSize.set(testMethodsCallStackSize.get() + 1);
+    }
+
+    /**
+     * Should be called as the last action of test code method
+     */
+    static void leaveTestingCodeMethod() {
+        testMethodsCallStackSize.set(testMethodsCallStackSize.get() - 1);
+    }
 
     /**
      * Resets time provider to {@link #DEFAULT default}. Should be used for test purpose only.
@@ -88,12 +121,13 @@ public abstract class TimeProvider {
     }
 
     /**
-     * Returns current time provider.
+     * Returns current time provider if this method is called from test method (see configuration)
+     * or {@link #DEFAULT} otherwise.
      *
      * @return current time provider.
      */
     public static TimeProvider getTimeProvider() {
-        return timeProvider;
+        return testMethodsCallStackSize.get() > 0 ? timeProvider : DEFAULT;
     }
 
     /**
@@ -136,6 +170,16 @@ public abstract class TimeProvider {
     public abstract void waitOn(Object monitor, long millis, int nanos) throws InterruptedException;
 
     /**
+     * @see Object#notifyAll()
+     */
+    public abstract void notifyAll(Object monitor);
+
+    /**
+     * @see Object#notify()
+     */
+    public abstract void notify(Object monitor);
+
+    /**
      * @see sun.misc.Unsafe#park(boolean, long)
      */
     public abstract void park(boolean isAbsolute, long time);
@@ -144,4 +188,5 @@ public abstract class TimeProvider {
      * @see sun.misc.Unsafe#unpark(Object)
      */
     public abstract void unpark(Object thread);
+
 }

@@ -23,13 +23,17 @@ package com.devexperts.timetest.test;
  */
 
 
+import com.devexperts.timetest.Repeat;
+import com.devexperts.timetest.RepeatRule;
 import com.devexperts.timetest.TestTimeProvider;
 import com.devexperts.util.UnsafeHolder;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.Assert.*;
@@ -39,12 +43,16 @@ import static org.junit.Assert.*;
  */
 public class TestTimeProviderTest {
 
+    @Rule
+    public RepeatRule repeatRule = new RepeatRule();
+
     @After
     public void tearDown() throws Exception {
         TestTimeProvider.reset();
     }
 
     @Test
+    @Repeat(100)
     public void testIncreaseAndSetTime() {
         TestTimeProvider.start(100);
         assertEquals(100, System.currentTimeMillis());
@@ -53,252 +61,245 @@ public class TestTimeProviderTest {
     }
 
     @Test
+    @Repeat(100)
     public void testWaitOnWakesUpByNotify() throws InterruptedException {
         TestTimeProvider.start();
-        final Object monitor = new Object();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (monitor) {
-                    monitor.notifyAll();
-                }
+        Phaser phaser = new Phaser(2);
+        Object monitor = new Object();
+        Thread thread = new Thread(() -> {
+            phaser.arriveAndAwaitAdvance();
+            synchronized (monitor) {
+                monitor.notifyAll();
             }
         }, "TestThread");
         thread.start();
         synchronized (monitor) {
+            phaser.arriveAndAwaitAdvance();
             monitor.wait(Long.MAX_VALUE);
         }
     }
 
     @Test
+    @Repeat(100)
     public void testWaitOnWakesUpByTimeout() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] failed = {false};
-        final Object monitor = new Object();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (monitor) {
-                    try {
-                        monitor.wait(100);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        failed[0] = true;
-                    }
+        AtomicBoolean failed = new AtomicBoolean();
+        Phaser phaser = new Phaser(2);
+        Object monitor = new Object();
+        Thread thread = new Thread(() -> {
+            synchronized (monitor) {
+                try {
+                    phaser.arriveAndAwaitAdvance();
+                    monitor.wait(100);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    failed.set(true);
                 }
             }
         }, "TestThread");
         thread.start();
+        phaser.arriveAndAwaitAdvance();
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(100);
-        TestTimeProvider.waitUntilThreadsAreFrozen(100);
-        assertFalse(failed[0]);
+        TestTimeProvider.waitUntilThreadsAreFrozen(500);
+        assertFalse(failed.get());
     }
 
     @Test
+    @Repeat(100)
     public void testWaitOnWorksWithZeroArgument() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] failed = {false};
-        final Object monitor = new Object();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (monitor) {
-                    try {
-                        monitor.wait();
-                        failed[0] = true;
-                    } catch (InterruptedException e) {
-                        // ignored, done
-                    }
+        AtomicBoolean failed = new AtomicBoolean();
+        Object monitor = new Object();
+        Thread thread = new Thread(() -> {
+            synchronized (monitor) {
+                try {
+                    monitor.wait();
+                } catch (InterruptedException e) {
+                    failed.set(true);
                 }
             }
         }, "TestThread");
         thread.start();
+        while (thread.getState() == Thread.State.NEW) ;
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(1);
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         thread.interrupt();
+        while (thread.getState() == Thread.State.TIMED_WAITING) ;
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        assertFalse(failed[0]);
+        assertTrue(failed.get());
     }
 
     @Test
+    @Repeat(100)
     public void testSleep() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] failed = {false};
-        final long sleepTime = 100500;
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
+        AtomicBoolean failed = new AtomicBoolean();
+        long sleepTime = 100500;
+        Thread thread = null;
+        try {
+            thread = new Thread(() -> {
                 try {
                     Thread.sleep(sleepTime);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    failed[0] = true;
+                    failed.set(true);
                 }
-            }
-        }, "TestThread");
-        thread.start();
-        TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        TestTimeProvider.increaseTime(sleepTime);
-        TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        assertFalse(failed[0]);
+            }, "TestThread");
+            thread.start();
+            TestTimeProvider.waitUntilThreadsAreFrozen(1000);
+            TestTimeProvider.increaseTime(sleepTime);
+            TestTimeProvider.waitUntilThreadsAreFrozen(1000);
+            assertFalse(failed.get());
+        } finally {
+            thread.stop();
+        }
     }
 
     @Test
+    @Repeat(100)
     public void testSleepWithZeroArgument() throws InterruptedException {
         TestTimeProvider.start();
         Thread.sleep(0);
     }
 
     @Test
-    public void testWaitUntilThreadsFreeze() {
+    @Repeat(100)
+    public void testWaitUntilThreadsAreFrozen() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] shouldBeTrue = {false};
-        Thread thread = new Thread(new Runnable() {
-            @SuppressWarnings("UnusedDeclaration")
-            @Override
-            public void run() {
-                // do some work
-                int sum = 0;
-                for (int i = 0; i < 100_000_000; i++)
-                    sum += i;
-
-                shouldBeTrue[0] = true;
-            }
+        AtomicBoolean done = new AtomicBoolean();
+        int[] sum = new int[1];
+        Thread thread = new Thread(() -> {
+            // do some work
+            for (int i = 0; i < 50_000_000; i++)
+                sum[0] += i;
+            done.set(true);
         });
         thread.start();
         TestTimeProvider.waitUntilThreadsAreFrozen(1000);
-        assertTrue(shouldBeTrue[0]);
+        assertTrue(done.get());
     }
 
     @Test(expected = AssertionError.class)
-    public void testWaitUntilThreadsFreezeThrowsAssertionError() {
+    @Repeat(100)
+    public void testWaitUntilThreadsFreezeThrowsAssertionError() throws InterruptedException {
         TestTimeProvider.start();
-        Thread thread = new Thread(new Runnable() {
-            @SuppressWarnings("UnusedDeclaration")
-            @Override
-            public void run() {
+        Thread thread = null;
+        boolean[] done = new boolean[1];
+        try {
+            thread = new Thread(() -> {
                 // do some work
                 int i = 0;
-                while (true) {
+                while (!done[0])
                     i++;
-                }
-            }
-        });
-        thread.start();
-        TestTimeProvider.waitUntilThreadsAreFrozen(10);
+            }, "TestThread");
+            thread.start();
+            TestTimeProvider.waitUntilThreadsAreFrozen(10);
+        } finally {
+            done[0] = true;
+        }
     }
 
     @Test
+    @Repeat(100)
     public void interruptionShouldNotBeIgnored() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] isInterrupted = {false};
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(Long.MAX_VALUE);
-                } catch (InterruptedException e) {
-                    isInterrupted[0] = true;
-                }
+        AtomicBoolean isInterrupted = new AtomicBoolean();
+        Thread thread = new Thread(() -> {
+            try {
+                Thread.sleep(Long.MAX_VALUE);
+            } catch (InterruptedException e) {
+                isInterrupted.set(true);
             }
         }, "TestThread");
         thread.start();
         thread.interrupt();
         thread.join();
-        assertTrue(isInterrupted[0]);
+        assertTrue(isInterrupted.get());
     }
 
     @Test
+    @Repeat(100)
     public void testWithSeveralThreads() throws InterruptedException {
         TestTimeProvider.start();
-        final boolean[] failed = {false};
-        final boolean[] shouldBeTrue = {false};
-        Thread t1 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    // ignored, done
-                }
+        AtomicBoolean failed = new AtomicBoolean();
+        AtomicBoolean sleep1 = new AtomicBoolean(true);
+        AtomicBoolean sleep2 = new AtomicBoolean(true);
+        Thread t1 = new Thread(() -> {
+            try {
+                Thread.sleep(200);
+                sleep1.set(false);
+            } catch (InterruptedException e) {
+                // ignored, done
             }
         }, "TestThread_1");
-        Thread t2 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(100);
-                    shouldBeTrue[0] = true;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    failed[0] = false;
-                }
+        Thread t2 = new Thread(() -> {
+            try {
+                Thread.sleep(100);
+                sleep2.set(false);
+            } catch (Exception e) {
+                e.printStackTrace();
+                failed.set(true);
             }
         }, "TestThread_2");
         t1.start();
         t2.start();
+        while (t1.getState() == Thread.State.NEW) ;
+        while (t2.getState() == Thread.State.NEW) ;
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
         TestTimeProvider.increaseTime(100);
         TestTimeProvider.waitUntilThreadsAreFrozen(500);
-        assertTrue(shouldBeTrue[0]);
         t1.interrupt();
-        assertFalse(failed[0]);
+        t1.join();
+        t2.join();
+        assertTrue(sleep1.get());
+        assertFalse(failed.get());
+        assertFalse(sleep2.get());
     }
 
-    @Test
+    @Test(timeout = 5000)
+    @Repeat(100)
     public void testUnsafePark() throws InterruptedException {
         TestTimeProvider.start();
         final Object owner = new Object();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                UnsafeHolder.UNSAFE.park(false, Long.MAX_VALUE);
-                synchronized (owner) {
-                    owner.notifyAll();
-                }
+        Thread thread = new Thread(() -> {
+            UnsafeHolder.UNSAFE.park(false, Long.MAX_VALUE);
+            synchronized (owner) {
+                owner.notifyAll();
             }
         }, "TestThread");
         thread.start();
-        TestTimeProvider.waitUntilThreadsAreFrozen(100);
+        TestTimeProvider.waitUntilThreadsAreFrozen(200);
         synchronized (owner) {
             UnsafeHolder.UNSAFE.unpark(thread);
             owner.wait(Long.MAX_VALUE);
         }
     }
 
-    @Test
+    @Test(timeout = 10_000)
+    @Repeat(100)
     public void testLockSupport() throws InterruptedException {
         TestTimeProvider.start();
-        final Object owner = new Object();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                LockSupport.park();
-                synchronized (owner) {
-                    owner.notifyAll();
-                }
-            }
+        long millis = 10000000;
+        Thread thread = new Thread(() -> {
+            LockSupport.parkNanos(millis * 1_000_000);
         }, "TestThread");
         thread.start();
-        TestTimeProvider.waitUntilThreadsAreFrozen(100);
-        synchronized (owner) {
-            LockSupport.unpark(thread);
-            owner.wait(Long.MAX_VALUE);
-        }
+        while (thread.getState() == Thread.State.NEW) ;
+        TestTimeProvider.waitUntilThreadsAreFrozen(1000);
+        TestTimeProvider.increaseTime(millis);
+        thread.join();
     }
 
-    @Test
+    @Test(timeout = 5000)
+    @Repeat(100)
     public void testUnparkBeforePark() throws InterruptedException {
         TestTimeProvider.start();
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                UnsafeHolder.UNSAFE.park(false, Long.MAX_VALUE);
-                countDownLatch.countDown();
-            }
+        Thread thread = new Thread(() -> {
+            UnsafeHolder.UNSAFE.park(false, Long.MAX_VALUE);
+            countDownLatch.countDown();
         }, "TestThread");
         UnsafeHolder.UNSAFE.unpark(thread);
         thread.start();

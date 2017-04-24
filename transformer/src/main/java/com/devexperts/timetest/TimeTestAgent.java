@@ -50,8 +50,9 @@ public class TimeTestAgent extends JAgent {
         TimeTestAgent agent = new TimeTestAgent(inst, agentArgs, agentName, agentVersion, log);
         agent.setRedefineClasses(cfg.redefine());
         agent.setIsVerboseRedefinition(cfg.verboseRedifinition());
-        CachingClassFileTransformer transformer = new ChangeTimeMethodsTransformer(cfg, log, agentVersion);
+        CachingClassFileTransformer transformer = new TimeTestTransformer(cfg, log, agentVersion);
         transformer.setCacheDir(cfg.cacheDir());
+        transformer.setDumpDir(cfg.dumpDir());
         agent.addTransformer(transformer);
         return agent;
     }

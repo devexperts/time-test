@@ -1,10 +1,10 @@
-package com.devexperts.timetest.test;
+package com.devexperts.timetest;
 
 /*
  * #%L
  * test
  * %%
- * Copyright (C) 2015 - 2016 Devexperts, LLC
+ * Copyright (C) 2015 - 2017 Devexperts, LLC
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as
@@ -22,24 +22,13 @@ package com.devexperts.timetest.test;
  * #L%
  */
 
-import com.devexperts.timetest.DummyTimeProvider;
-import org.junit.After;
-import org.junit.Test;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * Tests for {@link com.devexperts.timetest.DummyTimeProvider}.
- */
-public class DummyTimeProviderTest {
-
-    @After
-    public void tearDown() {
-        DummyTimeProvider.reset();
-    }
-
-    @Test(expected = UnsupportedOperationException.class)
-    public void shouldThrowExceptionOnTimeMillis() {
-        DummyTimeProvider.start();
-        System.currentTimeMillis();
-    }
-
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Repeat {
+    int value();
 }

@@ -20,7 +20,7 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>copy-sample-agent</id>
+                        <id>copy-agents</id>
                         <phase>process-test-classes</phase>
                         <goals>
                             <goal>copy</goal>
@@ -34,6 +34,13 @@
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <destFileName>${agent.artifact.name}.jar</destFileName>
                                 </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.devexperts.dlcheck</groupId>
+                                    <artifactId>agent</artifactId>
+                                    <version>0.4</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <destFileName>dlcheck.jar</destFileName>
+                                </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>
@@ -41,15 +48,27 @@
             </plugin>
             <!-- Configure maven-surefire-plugin to use "timetest" agent -->
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.19.1</version>
                 <configuration>
-                    <argLine>-javaagent:${project.build.directory}/${agent.artifact.name}.jar -Dtimetest.log.level=debug</argLine>
+                    <argLine>
+                        -javaagent:${project.build.directory}/${agent.artifact.name}.jar
+                        -Dtimetest.log.level=DEBUG
+                        -Dtimetest.dump.dir=${project.build.directory}/timetest_dump
+                    </argLine>
                 </configuration>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
+        <dependency>
+            <groupId>com.devexperts.dlcheck</groupId>
+            <artifactId>agent</artifactId>
+            <version>0.4</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>agent</artifactId>
@@ -70,4 +89,5 @@
         </dependency>
     </dependencies>
 
+    <!--TODO bintray repo-->
 </project>

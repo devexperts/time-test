@@ -36,6 +36,10 @@ public interface Configuration extends Config {
     @DefaultValue("")
     String[] exclude();
 
+    @Key("timetest.tests")
+    @DefaultValue("com.devexperts.*.test.*")
+    String[] testClasses();
+
     @Key("timetest.log.level")
     @DefaultValue("INFO")
     String logLevel();

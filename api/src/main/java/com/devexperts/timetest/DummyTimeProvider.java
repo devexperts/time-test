@@ -23,6 +23,8 @@ package com.devexperts.timetest;
  */
 
 
+import com.devexperts.util.UnsafeHolder;
+
 /**
  * Dummy implementation of {@link TimeProvider}. Throws {@link UnsupportedOperationException}
  * on all method calls. It is recommended to use this {@code time provider} for tests as default.
@@ -69,22 +71,40 @@ public class DummyTimeProvider extends TimeProvider {
     }
 
     @Override
-    public void waitOn(Object monitor, long millis) {
+    public void waitOn(Object monitor, long millis) throws InterruptedException {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public void waitOn(Object monitor, long millis, int nanos) throws InterruptedException {
-        throw new UnsupportedOperationException();
+        if (millis == 0 && nanos == 0) {
+            monitor.wait();
+        } else {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    @Override
+    public void notify(Object monitor) {
+        monitor.notify();
+    }
+
+    @Override
+    public void notifyAll(Object monitor) {
+        monitor.notifyAll();
     }
 
     @Override
     public void park(boolean isAbsolute, long time) {
-        throw new UnsupportedOperationException();
+        if (!isAbsolute && time == 0) {
+            UnsafeHolder.UNSAFE.park(false, 0);
+        } else {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
     public void unpark(Object thread) {
-        throw new UnsupportedOperationException();
+        UnsafeHolder.UNSAFE.unpark(thread);
     }
 }

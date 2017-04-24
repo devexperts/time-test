@@ -25,38 +25,45 @@ package com.devexperts.timetest;
 
 import com.devexperts.logging.Logging;
 
-import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
-import java.util.*;
-import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Time provider for testing. You can manipulate with time to your notice.
  * Use {@link #start()} method to start using this provider and {@link #reset()} to reset time provider to default.
  * <p>
  * See tests for example.
+ * <p>
+ * <h3>Implementation details</h3>
+ * Implementation of this class contains hard to understand logic with locks for synchronization.
+ * This paragraph tries to describe this logic.
+ * <p>
+ * <p> Here are three base operations: <b>waitOn</b> (used for all waiting operations implementation),
+ * <b>invalidate</b> (invoked when time is changed) and
+ * <b>waitUntilThreadsAreFrozen</b> (used to wait a moment, when all threads are done or in WAITING state).
  */
 public class TestTimeProvider extends TimeProvider {
 
     private static final Logging LOG = Logging.getLogging(TestTimeProvider.class);
     private static final TestTimeProvider INSTANCE = new TestTimeProvider();
+
+    private static final long WAITING_TIMEOUT = 10; // ms
+
     // For checking that TestTimeProvider isn't started already.
-    @GuardedBy("TestTimeProvider")
     private static boolean started;
-    @GuardedBy("TestTimeProvider")
     private static Exception stacktraceOnStart;
 
-    @GuardedBy("this")
-    private final PriorityQueue<ThreadInfo> threadQueue = new PriorityQueue<>();
-    @GuardedBy("this")
-    private final Set<Thread> waitingThreads = new HashSet<>();
-    @GuardedBy("this")
-    private final Set<Object> unparkedThreads = new HashSet<>();
-    @GuardedBy("this")
-    private final Map<Object, CountDownLatch> parkThreadOwners = new HashMap<>();
-    @GuardedBy("this")
+    private final IdentityHashMap<Object, List<ThreadInfo>> waitingThreads = new IdentityHashMap<>();
+    private final IdentityHashMap<Thread, ThreadInfo> threadInfos = new IdentityHashMap<>();
+    private Set<Thread> setToBeWaited = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
     private Set<Thread> threadsOnStart = new HashSet<>();
-    @GuardedBy("this")
     private volatile long currentTime = 0; // volatile for getters.
 
     private TestTimeProvider() {
@@ -95,6 +102,7 @@ public class TestTimeProvider extends TimeProvider {
      * Resets time provider to default.
      */
     public synchronized static void reset() {
+        INSTANCE.resetTime();
         TimeProvider.resetTimeProvider();
         started = false;
     }
@@ -128,11 +136,35 @@ public class TestTimeProvider extends TimeProvider {
      *                created after {@link #start()} invocation should be frozen.
      * @throws AssertionError if any {@code Threads} are non-frozen after specified timeout.
      */
-    public static void waitUntilThreadsAreFrozen(long timeout) {
+    public static void waitUntilThreadsAreFrozen(long timeout) throws InterruptedException {
         INSTANCE.waitUntilThreadsAreFrozen0(timeout);
     }
 
+
     // ========== TimeProvider implementation ==========
+
+    private synchronized void start0(long startTime) {
+        threadsOnStart = Thread.getAllStackTraces().keySet();
+        setTime0(startTime);
+    }
+
+    private synchronized void resetTime() {
+        currentTime = 0;
+    }
+
+    private synchronized void increaseTime0(long millis) {
+        setTime0(currentTime + millis);
+    }
+
+    private long checkTimeArgumentsAndGetMillis(long millis, int nanos) {
+        if (millis < 0)
+            throw new IllegalArgumentException("Timeout value is negative");
+        if (nanos < 0 || nanos > 999_999)
+            throw new IllegalArgumentException("Nanosecond timeout value out of range");
+        if (nanos >= 500_000 || (nanos != 0 && millis == 0))
+            millis++;
+        return millis;
+    }
 
     @Override
     public long timeMillis() {
@@ -150,236 +182,191 @@ public class TestTimeProvider extends TimeProvider {
     }
 
     @Override
-    public void sleep(long millis, int nanos) throws InterruptedException {
-        millis = checkTimeArgumentsAndGetMillis(millis, nanos);
-        if (millis == 0) // does not need to sleep.
-            return;
-        long endTime;
-        synchronized (this) {
-            endTime = currentTime + millis;
-            if (endTime < currentTime) // overflowed.
-                endTime = Long.MAX_VALUE;
-        }
-        Object owner = new Object();
-        synchronized (owner) {
-            while (endTime > currentTime) {
-                waitOn(owner, millis);
-            }
-        }
-    }
-
-    @Override
-    @GuardedBy("monitor")
     public void waitOn(Object monitor, long millis) throws InterruptedException {
         waitOn(monitor, millis, 0);
     }
 
     @Override
-    @GuardedBy("monitor")
-    public void waitOn(Object monitor, long millis, int nanos) throws InterruptedException {
-        millis = checkTimeArgumentsAndGetMillis(millis, nanos);
-        waitOn0(monitor, false, millis);
+    public void notify(Object monitor) {
+        notifyAll(monitor);
+    }
+
+    private synchronized void setTime0(long millis) {
+        synchronized (this) {
+            if (millis < currentTime)
+                throw new IllegalArgumentException(
+                    "Time cannot be decreased, current=" + currentTime + ", new=" + millis);
+            currentTime = millis;
+            threadInfos.values().stream()
+                .filter(ti -> currentTime >= ti.resumeTime)
+                .forEach(ti -> ti.resumed = true);
+            waitingThreads.values().forEach(tis -> tis.removeIf(ti -> ti.resumed));
+            waitingThreads.entrySet().removeIf(e -> e.getValue().isEmpty());
+        }
     }
 
     @Override
-    public void park(boolean isAbsolute, long time) {
-        long millis = time / 1_000_000;
-        int nanos = (int) (time % 1_000_000);
-        millis = checkTimeArgumentsAndGetMillis(millis, nanos);
-        CountDownLatch owner;
+    public synchronized void notifyAll(Object monitor) {
         synchronized (this) {
-            Thread key = Thread.currentThread();
-            boolean unparkedAlready = unparkedThreads.remove(key);
-            if (unparkedAlready)
+            List<ThreadInfo> tis = waitingThreads.remove(monitor);
+            if (tis == null)
                 return;
-            owner = new CountDownLatch(1);
-            parkThreadOwners.put(key, owner);
+            tis.forEach(ti -> ti.resumed = true);
         }
-        try {
-            synchronized (owner) {
-                owner.countDown();
-                waitOn0(owner, isAbsolute, millis);
+    }
+
+    @Override
+    public void sleep(long millis, int nanos) throws InterruptedException {
+        millis = checkTimeArgumentsAndGetMillis(millis, nanos);
+        if (millis == 0) // does not need to sleep.
+            return;
+        // Sleep can be simulated via wait() call without
+        // any possibility of notify() call on the same monitor
+        Object monitor = new Object();
+        synchronized (monitor) {
+            waitOn(monitor, millis);
+        }
+    }
+
+    @Override
+    public void waitOn(Object monitor, long millis, int nanos) throws InterruptedException {
+        ThreadInfo ti;
+        long resumeTime;
+        setToBeWaited.add(Thread.currentThread());
+        synchronized (this) {
+            millis = checkTimeArgumentsAndGetMillis(millis, nanos);
+            // Wait forever if millis == 0
+            resumeTime = millis != 0 ? currentTime + millis : Long.MAX_VALUE;
+            ti = new ThreadInfo(Thread.currentThread(), monitor, resumeTime);
+            List<ThreadInfo> tis = waitingThreads.computeIfAbsent(monitor, m -> new ArrayList<>());
+            tis.add(ti);
+            threadInfos.put(ti.thread, ti);
+            setToBeWaited.remove(Thread.currentThread());
+        }
+        // Wait with small timeout until
+        // current time is equals or greater than resume time
+        // or notify() is called on the monitor
+        while (true) {
+            monitor.wait(WAITING_TIMEOUT);
+            if (Thread.currentThread().isInterrupted())
+                throw new InterruptedException();
+            if (ti.resumed) {
+                synchronized (this) {
+                    threadInfos.remove(ti.thread);
+                }
+                return;
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        }
+    }
+
+    private Set<Thread> unparkedThreads = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    @Override
+    public void park(boolean isAbsolute, long time) {
+        ThreadInfo ti;
+        // This thread could wait for "this" lock,
+        // so store it to set with potentially waiting
+        setToBeWaited.add(Thread.currentThread());
+        synchronized (this) {
+            // This thread could wait
+            setToBeWaited.remove(Thread.currentThread());
+            // If current thread has been unparked already,
+            // just remove it from "unparked threads" set and return
+            if (unparkedThreads.remove(Thread.currentThread()))
+                return;
+            // Count time millis
+            long millis = time / 1_000_000;
+            int nanos = (int) (time % 1_000_000);
+            millis = checkTimeArgumentsAndGetMillis(millis, nanos);
+            long resumeTime = isAbsolute ? millis : currentTime + millis;
+            if (currentTime >= resumeTime)
+                return;
+            // Store information about thread
+            ti = new ThreadInfo(Thread.currentThread(), null, resumeTime);
+            threadInfos.put(ti.thread, ti);
+        }
+        // Simulate park via waiting on unused monitor
+        while (true) {
+            try {
+                Thread.sleep(WAITING_TIMEOUT);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (Thread.currentThread().isInterrupted())
+                return;
+            if (ti.resumed) {
+                synchronized (this) {
+                    threadInfos.remove(ti.thread);
+                }
+                return;
+            }
         }
     }
 
     @Override
     public void unpark(Object thread) {
-        CountDownLatch owner;
         synchronized (this) {
-            owner = parkThreadOwners.remove(thread);
-            if (owner == null) {
-                unparkedThreads.add(thread);
-                return;
-            }
-        }
-        try {
-            owner.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        synchronized (owner) {
-            owner.notifyAll();
+            ThreadInfo ti = threadInfos.get(thread);
+            // If thread hasn't been parked already, mark it as unparked,
+            // otherwise mark it as "resumed"
+            if (ti == null)
+                unparkedThreads.add((Thread) thread);
+            else
+                ti.resumed = true;
         }
     }
 
-    // ========== Internal methods ==========
-
-    private synchronized void start0(long startTime) {
-        threadsOnStart = Thread.getAllStackTraces().keySet();
-        unparkedThreads.clear();
-        parkThreadOwners.clear();
-        setTime(startTime);
-    }
-
-    private synchronized void setTime0(long millis) {
-        currentTime = millis;
-        invalidate();
-    }
-
-    private synchronized void increaseTime0(long millis) {
-        currentTime += millis;
-        invalidate();
-    }
-
-    @GuardedBy("monitor")
-    private void waitOn0(Object monitor, boolean isAbsolute, long millis) throws InterruptedException {
-        // Just wait if time equals to 0.
-        if (!isAbsolute && millis == 0) {
-            monitor.wait();
-            return;
-        }
-        // Count resume time.
-        long resumeTime = isAbsolute ? millis : currentTime + millis;
-        if (!isAbsolute && resumeTime < currentTime) // overflowed.
-            resumeTime = Long.MAX_VALUE;
-        // Check that resume time is greater than current.
-        if (resumeTime <= currentTime)
-            return;
-        // Create thread info and add it to priority queue.
-        ThreadInfo threadInfo = new ThreadInfo(monitor, resumeTime);
-        synchronized (this) {
-            waitingThreads.add(Thread.currentThread());
-            threadQueue.add(threadInfo);
-            // Notify that thread changes state to WAITING.
-            notifyAll();
-        }
-        try {
-            // Wait. If thread should be waked up then monitor.notifyAll() will be executed in #invalidate().
-            monitor.wait();
-        } finally {
-            synchronized (this) {
-                threadInfo.resumed = true;
-                waitingThreads.remove(Thread.currentThread());
-                // Notify that new thread changes state to resumed.
-                // For #waitUntilThreadsAreFrozen() and #invalidate().
-                notifyAll();
-            }
-        }
-    }
-
-    private long checkTimeArgumentsAndGetMillis(long millis, int nanos) {
-        if (millis < 0)
-            throw new IllegalArgumentException("timeout value is negative");
-        if (nanos < 0 || nanos > 999_999)
-            throw new IllegalArgumentException("nanosecond timeout value out of range");
-        if (nanos >= 500_000 || (nanos != 0 && millis == 0))
-            millis++;
-        return millis;
-    }
-
-    // Should be called from methods which change current time.
-    @GuardedBy("this")
-    private void invalidate() {
-        while (!threadQueue.isEmpty() && threadQueue.peek().resumeTime <= currentTime) {
-            ThreadInfo threadInfo = threadQueue.poll();
-            if (!threadInfo.resumed) {
-                synchronized (threadInfo.owner) {
-                    threadInfo.owner.notifyAll();
-                }
-                while (!threadInfo.resumed) {
-                    try {
-                        wait();
-                    } catch (InterruptedException e) {
-                        LOG.warn("Interrupted invalidate");
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        }
-    }
-
-    private synchronized void waitUntilThreadsAreFrozen0(long timeout) {
-        Set<List<StackTraceElement>> threadsInWaitingStateStackTraces = new HashSet<>();
-        // Store end time.
-        final long endTime = System.currentTimeMillis() + timeout;
-        // This map contains non-frozen threads with stack traces.
-        Map<Thread, StackTraceElement[]> badThreads = new HashMap<>();
-        // Exception for stack trace logging.
+    private synchronized void waitUntilThreadsAreFrozen0(long timeout) throws InterruptedException {
+        // Store end time
+        long endTime = System.currentTimeMillis() + timeout;
         Exception logException = new Exception();
         while (true) {
             // Store current time.
             long time = System.currentTimeMillis();
-            // Fill bad threads.
-            badThreads.clear();
-            for (Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
-                if (threadsOnStart.contains(e.getKey()) || waitingThreads.contains(e.getKey()))
-                    continue;
-                Thread.State threadState = e.getKey().getState();
-                if (threadState == Thread.State.TERMINATED
-                        || threadState == Thread.State.WAITING
-                        || threadState == Thread.State.NEW)
-                    continue;
-                if (threadState == Thread.State.TIMED_WAITING) {
-                    if (threadsInWaitingStateStackTraces.add(Arrays.asList(e.getValue()))) {
-                        logException.setStackTrace(e.getValue());
-                        LOG.warn("Thread in TIMED_WAITING state, see stack trace.", logException);
+            List<Map.Entry<Thread, StackTraceElement[]>> badThreads =
+                Thread.getAllStackTraces().entrySet().stream().filter(e -> {
+                    Thread t = e.getKey();
+                    if (threadsOnStart.contains(t))
+                        return false;
+                    ThreadInfo ti = threadInfos.get(t);
+                    if (ti != null)
+                        return ti.resumed;
+                    switch (t.getState()) {
+                        case TERMINATED:
+                        case WAITING:
+                        case NEW:
+                            return false;
+                        case BLOCKED:
+                            return setToBeWaited.contains(t);
+                        default:
+                            return true;
                     }
-                    continue;
+                }).collect(Collectors.toList());
+            if (badThreads.isEmpty())
+                return;
+            if (time >= endTime) {
+                LOG.error("Waiting until threads are frozen failed by timeout. See stack traces for non-frozen threads:");
+                for (Map.Entry<Thread, StackTraceElement[]> e : badThreads) {
+                    logException.setStackTrace(e.getValue());
+                    LOG.error("Stacktrace for " + e.getKey(), logException);
                 }
-                badThreads.put(e.getKey(), e.getValue());
+                throw new AssertionError("Waiting until threads are frozen failed by timeout.");
             }
-            // Break if all threads are frozen or time is up.
-            if (badThreads.isEmpty() || time >= endTime)
-                break;
-            // Wait for changes.
-            try {
-                wait(endTime - time);
-            } catch (InterruptedException e) {
-                LOG.warn("Interrupted waitUntilThreadsAreFrozen");
-                Thread.currentThread().interrupt();
-                break;
-            }
+            wait(WAITING_TIMEOUT);
         }
-        // Finish if all threads are frozen.
-        if (badThreads.isEmpty())
-            return;
-        // Log stack traces for non-frozen threads and throw AssertionError.
-        LOG.error("Waiting until threads are frozen failed by timeout. See stack traces for non-frozen threads:");
-        for (Map.Entry<Thread, StackTraceElement[]> e : badThreads.entrySet()) {
-            logException.setStackTrace(e.getValue());
-            LOG.error("Stacktrace for " + e.getKey(), logException);
-        }
-        throw new AssertionError("Waiting until threads are frozen failed by timeout.");
     }
 
-    private static class ThreadInfo implements Comparable<ThreadInfo> {
-        private final Object owner;
-        private final long resumeTime;
+    private static class ThreadInfo {
+        volatile boolean resumed;
+        final Thread thread;
+        final Object monitor;
+        final long resumeTime; // Long.MAX_VALUE if thread shouldn't be resumed by the time limit expiration
 
-        @GuardedBy("TestTimeProvider.this")
-        private boolean resumed = false;
-
-        private ThreadInfo(Object owner, long resumeTime) {
-            this.owner = owner;
+        private ThreadInfo(Thread thread, Object monitor, long resumeTime) {
+            this.thread = thread;
+            this.monitor = monitor;
             this.resumeTime = resumeTime;
-        }
-
-        @Override
-        public int compareTo(@Nonnull ThreadInfo other) {
-            return Long.compare(resumeTime, other.resumeTime);
         }
     }
 }

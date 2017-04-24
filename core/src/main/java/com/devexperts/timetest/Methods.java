@@ -52,11 +52,27 @@ public class Methods {
         TimeProvider.getTimeProvider().waitOn(monitor, millis, nanos);
     }
 
+    public static void notify(Object monitor) {
+        TimeProvider.getTimeProvider().notify(monitor);
+    }
+
+    public static void notifyAll(Object monitor) {
+        TimeProvider.getTimeProvider().notifyAll(monitor);
+    }
+
     public static void park(boolean isAbsolute, long time) {
         TimeProvider.getTimeProvider().park(isAbsolute, time);
     }
 
     public static void unpark(Object thread) {
         TimeProvider.getTimeProvider().unpark(thread);
+    }
+
+    public static void enterTestingCodeMethod() {
+        TimeProvider.enterTestingCodeMethod();
+    }
+
+    public static void leaveTestingCodeMethod() {
+        TimeProvider.leaveTestingCodeMethod();
     }
 }

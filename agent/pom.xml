@@ -64,13 +64,13 @@
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>core</artifactId>
             <version>${project.version}</version>
-            <scope>provided</scope>
+            <!--<scope>provided</scope> TODO -->
         </dependency>
         <dependency>
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>transformer</artifactId>
             <version>${project.version}</version>
-            <scope>provided</scope>
+            <!--<scope>provided</scope> TODO -->
         </dependency>
     </dependencies>
 

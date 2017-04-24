@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.2 - 2017-04-24
+----------------
+* Fix deadlock in TestTimeProvider
+* Support "unpark before park" executions
+
 1.1 - 2016-10-27
 ----------------
 * Support class caching
