@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.transformer;
 
 /*
  * #%L
@@ -33,12 +33,16 @@ public interface Configuration extends Config {
     String[] include();
 
     @Key("timetest.exclude")
-    @DefaultValue("")
+    @DefaultValue("org.apache.maven.*,org.junit.*,com.devexperts.test.*")
     String[] exclude();
 
-    @Key("timetest.tests")
-    @DefaultValue("com.devexperts.*.test.*")
-    String[] testClasses();
+    @Key("timetest.testingCode")
+    @DefaultValue("*Test")
+    String[] testingCode();
+
+    @Key("timetest.nonTestingCode")
+    @DefaultValue("com.devexperts.logging.*")
+    String[] nonTestingCode();
 
     @Key("timetest.log.level")
     @DefaultValue("INFO")
@@ -52,7 +56,7 @@ public interface Configuration extends Config {
     boolean verboseRedifinition();
 
     @Key("timetest.redefinition.enabled")
-    @DefaultValue("false")
+    @DefaultValue("true")
     boolean redefine();
 
     @Key("timetest.cache.dir")

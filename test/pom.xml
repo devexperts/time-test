@@ -3,7 +3,7 @@
     <parent>
         <artifactId>timetest</artifactId>
         <groupId>com.devexperts.timetest</groupId>
-        <version>1.3-SNAPSHOT</version>
+        <version>1.3</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -11,6 +11,7 @@
 
     <properties>
         <maven.deploy.skip>true</maven.deploy.skip>
+        <dlcheck.version>0.5.1</dlcheck.version>
     </properties>
 
     <build>
@@ -28,18 +29,18 @@
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
+                                    <groupId>com.devexperts.dlcheck</groupId>
+                                    <artifactId>agent</artifactId>
+                                    <version>${dlcheck.version}</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <destFileName>dlcheck.jar</destFileName>
+                                </artifactItem>
+                                <artifactItem>
                                     <groupId>com.devexperts.timetest</groupId>
                                     <artifactId>agent</artifactId>
                                     <version>${project.version}</version>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <destFileName>${agent.artifact.name}.jar</destFileName>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>com.devexperts.dlcheck</groupId>
-                                    <artifactId>agent</artifactId>
-                                    <version>0.4</version>
-                                    <outputDirectory>${project.build.directory}</outputDirectory>
-                                    <destFileName>dlcheck.jar</destFileName>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
@@ -53,9 +54,11 @@
                 <version>2.19.1</version>
                 <configuration>
                     <argLine>
+                        -javaagent:${project.build.directory}/dlcheck.jar
+                        -Ddlcheck.fail=true
                         -javaagent:${project.build.directory}/${agent.artifact.name}.jar
-                        -Dtimetest.log.level=DEBUG
-                        -Dtimetest.dump.dir=${project.build.directory}/timetest_dump
+                        <!-- -Dtimetest.log.level=DEBUG-->
+                        <!-- -Dtimetest.dump.dir=${project.build.directory}/timetest_dump-->
                     </argLine>
                 </configuration>
             </plugin>
@@ -66,8 +69,8 @@
         <dependency>
             <groupId>com.devexperts.dlcheck</groupId>
             <artifactId>agent</artifactId>
-            <version>0.4</version>
-            <scope>provided</scope>
+            <version>${dlcheck.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.devexperts.timetest</groupId>
@@ -88,6 +91,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <!--TODO bintray repo-->
 </project>

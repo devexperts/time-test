@@ -92,10 +92,12 @@ public class TestTimeProvider extends TimeProvider {
 
     /**
      * Starts using {@link TestTimeProvider} instead of current.
-     * Sets {@link System#currentTimeMillis()} as start time.
+     * Sets {@link System#currentTimeMillis()} as start time and returns it.
      */
-    public static void start() {
-        start(System.currentTimeMillis());
+    public static long start() {
+        long startTime = System.currentTimeMillis();
+        start(startTime);
+        return startTime;
     }
 
     /**
@@ -192,27 +194,24 @@ public class TestTimeProvider extends TimeProvider {
     }
 
     private synchronized void setTime0(long millis) {
-        synchronized (this) {
-            if (millis < currentTime)
-                throw new IllegalArgumentException(
-                    "Time cannot be decreased, current=" + currentTime + ", new=" + millis);
-            currentTime = millis;
-            threadInfos.values().stream()
-                .filter(ti -> currentTime >= ti.resumeTime)
-                .forEach(ti -> ti.resumed = true);
-            waitingThreads.values().forEach(tis -> tis.removeIf(ti -> ti.resumed));
-            waitingThreads.entrySet().removeIf(e -> e.getValue().isEmpty());
+        if (millis < currentTime) {
+            throw new IllegalArgumentException(
+                "Time cannot be decreased, current=" + currentTime + ", new=" + millis);
         }
+        currentTime = millis;
+        threadInfos.values().stream()
+            .filter(ti -> currentTime >= ti.resumeTime)
+            .forEach(ti -> ti.resumed = true);
+        waitingThreads.values().forEach(tis -> tis.removeIf(ti -> ti.resumed));
+        waitingThreads.entrySet().removeIf(e -> e.getValue().isEmpty());
     }
 
     @Override
     public synchronized void notifyAll(Object monitor) {
-        synchronized (this) {
-            List<ThreadInfo> tis = waitingThreads.remove(monitor);
-            if (tis == null)
-                return;
-            tis.forEach(ti -> ti.resumed = true);
-        }
+        List<ThreadInfo> tis = waitingThreads.remove(monitor);
+        if (tis == null)
+            return;
+        tis.forEach(ti -> ti.resumed = true);
     }
 
     @Override
@@ -246,16 +245,11 @@ public class TestTimeProvider extends TimeProvider {
         // Wait with small timeout until
         // current time is equals or greater than resume time
         // or notify() is called on the monitor
-        while (true) {
+        while (!ti.resumed) {
             monitor.wait(WAITING_TIMEOUT);
-            if (Thread.currentThread().isInterrupted())
-                throw new InterruptedException();
-            if (ti.resumed) {
-                synchronized (this) {
-                    threadInfos.remove(ti.thread);
-                }
-                return;
-            }
+        }
+        synchronized (this) {
+            threadInfos.remove(ti.thread);
         }
     }
 
@@ -293,8 +287,6 @@ public class TestTimeProvider extends TimeProvider {
                 Thread.currentThread().interrupt();
                 return;
             }
-            if (Thread.currentThread().isInterrupted())
-                return;
             if (ti.resumed) {
                 synchronized (this) {
                     threadInfos.remove(ti.thread);

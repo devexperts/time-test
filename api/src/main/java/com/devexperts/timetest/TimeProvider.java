@@ -22,96 +22,17 @@ package com.devexperts.timetest;
  * #L%
  */
 
-
-import com.devexperts.util.UnsafeHolder;
-
 /**
  * Provides time-based methods. Should be thread-safe.
  */
 public abstract class TimeProvider {
-
-    // ========== Time-based methods ==========
-
     /**
      * Default time provider that uses standard system methods.
      */
-    private static final TimeProvider DEFAULT = new TimeProvider() {
-        @Override
-        public long timeMillis() {
-            return System.currentTimeMillis();
-        }
-
-        @Override
-        public long nanoTime() {
-            return System.nanoTime();
-        }
-
-        @Override
-        public void sleep(long millis) throws InterruptedException {
-            Thread.sleep(millis);
-        }
-
-        @Override
-        public void sleep(long millis, int nanos) throws InterruptedException {
-            Thread.sleep(millis, nanos);
-        }
-
-        @SuppressWarnings({"WaitWhileNotSynced", "WaitNotInLoop"})
-        @Override
-        public void waitOn(Object monitor, long millis) throws InterruptedException {
-            monitor.wait(millis);
-        }
-
-        @SuppressWarnings({"WaitWhileNotSynced", "WaitNotInLoop"})
-        @Override
-        public void waitOn(Object monitor, long millis, int nanos) throws InterruptedException {
-            monitor.wait(millis, nanos);
-        }
-
-        @Override
-        public void notifyAll(Object monitor) {
-            monitor.notifyAll();
-        }
-
-        @Override
-        public void notify(Object monitor) {
-            monitor.notify();
-        }
-
-        @Override
-        public void park(boolean isAbsolute, long time) {
-            UnsafeHolder.UNSAFE.park(isAbsolute, time);
-        }
-
-        @Override
-        public void unpark(Object thread) {
-            UnsafeHolder.UNSAFE.unpark(thread);
-        }
-    };
+    private static final TimeProvider DEFAULT = new DefaultTimeProvider();
     private volatile static TimeProvider timeProvider = DEFAULT;
 
-    // It is used for detection that we are executing in the test code,
-    // so the already defined {@link TimeProvider} should be used.
-    private static final ThreadLocal<Integer> testMethodsCallStackSize = new ThreadLocal<Integer>() {
-        @Override
-        protected Integer initialValue() {
-            return 0;
-        }
-    };
-
-    /**
-     * Should be called as the first action of test code method
-     */
-    static void enterTestingCodeMethod() {
-        testMethodsCallStackSize.set(testMethodsCallStackSize.get() + 1);
-    }
-
-    /**
-     * Should be called as the last action of test code method
-     */
-    static void leaveTestingCodeMethod() {
-        testMethodsCallStackSize.set(testMethodsCallStackSize.get() - 1);
-    }
+    public static final ThreadLocal<Boolean> inTestingCode = ThreadLocal.withInitial(() -> false);
 
     /**
      * Resets time provider to {@link #DEFAULT default}. Should be used for test purpose only.
@@ -121,13 +42,13 @@ public abstract class TimeProvider {
     }
 
     /**
-     * Returns current time provider if this method is called from test method (see configuration)
-     * or {@link #DEFAULT} otherwise.
+     * Returns current time provider if this method is called from the testing code
+     * (see configuration), {@link #DEFAULT} otherwise.
      *
      * @return current time provider.
      */
     public static TimeProvider getTimeProvider() {
-        return testMethodsCallStackSize.get() > 0 ? timeProvider : DEFAULT;
+        return inTestingCode.get() ? timeProvider : DEFAULT;
     }
 
     /**
@@ -138,6 +59,8 @@ public abstract class TimeProvider {
     static void setTimeProvider(TimeProvider timeProvider) {
         TimeProvider.timeProvider = timeProvider;
     }
+
+    // ========== Time-based methods ==========
 
     /**
      * @see System#currentTimeMillis()

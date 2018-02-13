@@ -33,11 +33,11 @@ public class TimeTestAgentRunner {
         // Run "SampleAgent" using "JAgentRunner". "SampleAgent" is loaded via created "InnerJarClassLoader".
         JAgentRunner.runAgent("com.devexperts.timetest.TimeTestAgent", inst, agentArgs,
                 InnerJarClassLoader.createForJars(
-                        "asm-all.jar",
-                        "jagent-impl.jar",
-                        "transformer.jar",
-                        "owner.jar",
-                        "owner-java8.jar"
+                        "timetest/asm-all.jar",
+                        "timetest/jagent-impl.jar",
+                        "timetest/transformer.jar",
+                        "timetest/owner.jar",
+                        "timetest/owner-java8.jar"
                 ));
     }
 }

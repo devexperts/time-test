@@ -26,6 +26,8 @@ import com.devexperts.jagent.CachingClassFileTransformer;
 import com.devexperts.jagent.JAgent;
 import com.devexperts.jagent.JAgentUtil;
 import com.devexperts.jagent.Log;
+import com.devexperts.timetest.transformer.Configuration;
+import com.devexperts.timetest.transformer.TimeTestTransformer;
 import org.aeonbits.owner.ConfigFactory;
 
 import java.lang.instrument.Instrumentation;

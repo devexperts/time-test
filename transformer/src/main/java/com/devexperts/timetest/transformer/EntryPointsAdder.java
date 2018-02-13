@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.transformer;
 
 /*
  * #%L
@@ -27,27 +27,35 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import static com.devexperts.timetest.TransformationUtils.*;
+import static com.devexperts.timetest.transformer.TransformationUtils.*;
 import static org.objectweb.asm.Opcodes.*;
 
-class TestEnterPointsAdder extends MethodVisitor {
+class EntryPointsAdder extends MethodVisitor {
     private static final Type THROWABLE_TYPE = Type.getType(Throwable.class);
 
+    private final boolean testingCode;
     private final GeneratorAdapter mv;
 
     private final Label tryLabel = new Label();
     private final Label catchLabel = new Label();
 
-    TestEnterPointsAdder(GeneratorAdapter mv) {
+    private int isInTestingCodeAlreadyLocal = -1;
+
+    EntryPointsAdder(boolean testingCode, GeneratorAdapter mv) {
         super(ASM_API, mv);
+        this.testingCode = testingCode;
         this.mv = mv;
     }
 
     @Override
     public void visitCode() {
         super.visitCode();
+        isInTestingCodeAlreadyLocal = mv.newLocal(Type.BOOLEAN_TYPE);
+        mv.invokeStatic(METHODS_TYPE, IS_IN_TESTING_CODE_METHOD);
+        mv.storeLocal(isInTestingCodeAlreadyLocal, Type.BOOLEAN_TYPE);
         mv.visitLabel(tryLabel);
-        mv.invokeStatic(METHODS_TYPE, ENTER_TRANSFORMED_METHOD);
+        mv.loadLocal(isInTestingCodeAlreadyLocal, Type.BOOLEAN_TYPE);
+        mv.invokeStatic(METHODS_TYPE, testingCode ? ENTER_TESTING_CODE_METHOD : ENTER_NON_TESTING_CODE_METHOD);
     }
 
     @Override
@@ -59,7 +67,8 @@ class TestEnterPointsAdder extends MethodVisitor {
         case IRETURN:
         case LRETURN:
         case RETURN:
-            mv.invokeStatic(METHODS_TYPE, LEAVE_TRANSFORMED_METHOD);
+            mv.loadLocal(isInTestingCodeAlreadyLocal, Type.BOOLEAN_TYPE);
+            mv.invokeStatic(METHODS_TYPE, testingCode ? LEAVE_TESTING_CODE_METHOD : LEAVE_NON_TESTING_CODE_METHOD);
             mv.visitInsn(opcode);
             break;
         default:
@@ -72,7 +81,8 @@ class TestEnterPointsAdder extends MethodVisitor {
         mv.visitLabel(catchLabel);
         int throwableLocal = mv.newLocal(THROWABLE_TYPE);
         mv.storeLocal(throwableLocal);
-        mv.invokeStatic(METHODS_TYPE, LEAVE_TRANSFORMED_METHOD);
+        mv.loadLocal(isInTestingCodeAlreadyLocal, Type.BOOLEAN_TYPE);
+        mv.invokeStatic(METHODS_TYPE, testingCode ? LEAVE_TESTING_CODE_METHOD : LEAVE_NON_TESTING_CODE_METHOD);
         mv.loadLocal(throwableLocal);
         mv.throwException();
         mv.visitTryCatchBlock(tryLabel, catchLabel, catchLabel, null);

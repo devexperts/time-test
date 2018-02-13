@@ -25,54 +25,94 @@ package com.devexperts.timetest;
 @SuppressWarnings("unused") // used in transformer
 public class Methods {
     public static long timeMillis() {
+        checkNewThread();
         return TimeProvider.getTimeProvider().timeMillis();
     }
 
     public static long nanoTime() {
+        checkNewThread();
         return TimeProvider.getTimeProvider().nanoTime();
     }
 
     public static void sleep(long millis) throws InterruptedException {
+        checkNewThread();
         TimeProvider.getTimeProvider().sleep(millis);
     }
 
     public static void sleep(long millis, int nanos) throws InterruptedException {
+        checkNewThread();
         TimeProvider.getTimeProvider().sleep(millis, nanos);
     }
 
     public static void waitOn(Object monitor) throws InterruptedException {
+        checkNewThread();
         TimeProvider.getTimeProvider().waitOn(monitor, 0);
     }
 
     public static void waitOn(Object monitor, long millis) throws InterruptedException {
+        checkNewThread();
         TimeProvider.getTimeProvider().waitOn(monitor, millis);
     }
 
     public static void waitOn(Object monitor, long millis, int nanos) throws InterruptedException {
+        checkNewThread();
         TimeProvider.getTimeProvider().waitOn(monitor, millis, nanos);
     }
 
     public static void notify(Object monitor) {
+        checkNewThread();
         TimeProvider.getTimeProvider().notify(monitor);
     }
 
     public static void notifyAll(Object monitor) {
+        checkNewThread();
         TimeProvider.getTimeProvider().notifyAll(monitor);
     }
 
     public static void park(boolean isAbsolute, long time) {
+        checkNewThread();
         TimeProvider.getTimeProvider().park(isAbsolute, time);
     }
 
     public static void unpark(Object thread) {
+        checkNewThread();
         TimeProvider.getTimeProvider().unpark(thread);
     }
 
-    public static void enterTestingCodeMethod() {
-        TimeProvider.enterTestingCodeMethod();
+    public static boolean isInTestingCode() {
+        return TimeProvider.inTestingCode.get();
     }
 
-    public static void leaveTestingCodeMethod() {
-        TimeProvider.leaveTestingCodeMethod();
+    public static void enterTestingCode(boolean isInTestingCodeAlready) {
+        if (!isInTestingCodeAlready)
+            TimeProvider.inTestingCode.set(true);
+    }
+
+    public static void leaveTestingCode(boolean isInTestingCodeAlready) {
+        if (!isInTestingCodeAlready)
+            TimeProvider.inTestingCode.set(false);
+    }
+
+    public static void enterNonTestingCode(boolean isInTestingCodeAlready) {
+        if (isInTestingCodeAlready)
+            TimeProvider.inTestingCode.set(false);
+    }
+
+    public static void leaveNonTestingCode(boolean isInTestingCodeAlready) {
+        if (isInTestingCodeAlready)
+            TimeProvider.inTestingCode.set(true);
+    }
+
+    private static WeakIdentityHashSet<Thread> NEW_THREADS_FROM_TESTING_CODE = new WeakIdentityHashSet<>();
+
+    public static void startThread(Thread thread) {
+        if (isInTestingCode()) {
+            NEW_THREADS_FROM_TESTING_CODE.add(thread);
+        }
+    }
+
+    private static void checkNewThread() {
+        if (NEW_THREADS_FROM_TESTING_CODE.remove(Thread.currentThread()))
+            TimeProvider.inTestingCode.set(true);
     }
 }

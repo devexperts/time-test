@@ -3,7 +3,7 @@
     <parent>
         <artifactId>timetest</artifactId>
         <groupId>com.devexperts.timetest</groupId>
-        <version>1.3-SNAPSHOT</version>
+        <version>1.3</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -28,7 +28,7 @@
                         </goals>
                         <configuration>
                             <includeArtifactIds>asm-all,owner,owner-java8,transformer,jagent-impl</includeArtifactIds>
-                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                            <outputDirectory>${project.build.outputDirectory}/timetest</outputDirectory>
                             <stripVersion>true</stripVersion>
                         </configuration>
                     </execution>
@@ -64,13 +64,13 @@
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>core</artifactId>
             <version>${project.version}</version>
-            <!--<scope>provided</scope> TODO -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.devexperts.timetest</groupId>
             <artifactId>transformer</artifactId>
             <version>${project.version}</version>
-            <!--<scope>provided</scope> TODO -->
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

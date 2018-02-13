@@ -47,17 +47,19 @@ Use `TestTimeProvider.setTime(millis)` and `TestTimeProvider.inscreaseTime(milli
 to change current time.
 Use `TestTimeProvider.waitUntilThreadsAreFrozen` to wait until all threads complete their work.
 
+In order to work properly **TestTimeProvider** defines if it is executed in the testing code or not on every time-based operation invocation (including `Object.notity()` and similars). For this purpose an entry point to your code have to be specified (see **timetest.testingCode** property). After that, if your code starts a thread it will be marked as ours too (**time-test** traces Thread.start() invocations for this purpose). However, there are some problems if you use shared scheduler like `ForkJoinPool`. In order to work with it expand **timetest.testingCode** property. 
 
 # Configuration
 You can pass your own configuration in `timetest.properties` properties file or set these properties as system parameters (*-Dparam.name=value*).
 The `timetest.properties` file should be in the application classpath. 
 
-* **timetest.tests** - defines test entrance classes in glob format. Usually, test classes. Default value: *\*Test* (all classes with suffix *Test*)
+* **timetest.testingCode** - defines the entry points of the testing code in glob format. Several globs can be separated by comma. Default value: *com.devexperts.\*Test* (all classes with *Test* suffix).
+* **timetest.nonTestingCode** - defines the scope of code which have to be processed like non-testing onecode in glob format. It can be helpful to print real timestamps in logging instead of virtual ones. Default value: *com.devexperts.logging.\**.
 * ***timetest.log.level*** defines internal logging level. Possible values: *DEBUG*, *INFO* (default value), *WARN*, *ERROR*.
 * ***timetest.log.file*** defines path of file to be used for logging. By default logs are printed to the standard output.
 * ***timetest.cache.dir*** [experimental] defines directory to be used for transformed classes caching. This feature is unstable, use it on your own risk.
 * ***timetest.include*** defines the transformation scope using globs. For example, setting the value to ```package.to.transform.*,another.package.to.transform.*``` informs **time-test** to transform classes from these packages only. By default all classes are included.
-* ***timetest.exclude*** defines the classes which should be excluded from transformation. The syntax is similar to **timetest.include** option.
+* ***timetest.exclude*** defines the classes which should be excluded from transformation. The syntax is similar to **timetest.include** option. Default value: *org.apache.maven.\*,org.junit.\*,com.devexperts.test.\**
 
 
 # Maven

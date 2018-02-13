@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.transformer;
 
 /*
  * #%L
@@ -25,7 +25,7 @@ package com.devexperts.timetest;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import static com.devexperts.timetest.TransformationUtils.*;
+import static com.devexperts.timetest.transformer.TransformationUtils.*;
 import static org.objectweb.asm.Opcodes.*;
 
 class ChangeTimeMethodsMethodTransformer extends MethodVisitor {

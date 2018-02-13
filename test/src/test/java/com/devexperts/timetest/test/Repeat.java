@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.test;
 
 /*
  * #%L

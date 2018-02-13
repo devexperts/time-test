@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.transformer;
 
 /*
  * #%L
@@ -32,6 +32,7 @@ class TransformationUtils {
     static final int ASM_API = Opcodes.ASM5;
     static final Type METHODS_TYPE = Type.getType("com/devexperts/timetest/Methods");
     static final Type OBJECT_TYPE = Type.getType(Object.class);
+    static final Type THREAD_TYPE = Type.getType(Thread.class);
 
     static final Method TIME_MILLIS = new Method("timeMillis", LONG_TYPE, new Type[]{});
     static final Method NANO_TIME = new Method("nanoTime", LONG_TYPE, new Type[]{});
@@ -49,6 +50,11 @@ class TransformationUtils {
     static final Method PARK = new Method("park", VOID_TYPE, new Type[]{BOOLEAN_TYPE, LONG_TYPE});
     static final Method UNPARK = new Method("unpark", VOID_TYPE, new Type[]{OBJECT_TYPE});
 
-    static final Method ENTER_TRANSFORMED_METHOD = new Method("enterTestingCodeMethod", VOID_TYPE, new Type[]{});
-    static final Method LEAVE_TRANSFORMED_METHOD = new Method("leaveTestingCodeMethod", VOID_TYPE, new Type[]{});
+    static final Method IS_IN_TESTING_CODE_METHOD = new Method("isInTestingCode", BOOLEAN_TYPE, new Type[]{});
+    static final Method ENTER_TESTING_CODE_METHOD = new Method("enterTestingCode", VOID_TYPE, new Type[]{BOOLEAN_TYPE});
+    static final Method LEAVE_TESTING_CODE_METHOD = new Method("leaveTestingCode", VOID_TYPE, new Type[]{BOOLEAN_TYPE});
+    static final Method ENTER_NON_TESTING_CODE_METHOD = new Method("enterNonTestingCode", VOID_TYPE, new Type[]{BOOLEAN_TYPE});
+    static final Method LEAVE_NON_TESTING_CODE_METHOD = new Method("leaveNonTestingCode", VOID_TYPE, new Type[]{BOOLEAN_TYPE});
+
+    static final Method START_THREAD_METHOD = new Method("startThread", VOID_TYPE, new Type[]{THREAD_TYPE});
 }

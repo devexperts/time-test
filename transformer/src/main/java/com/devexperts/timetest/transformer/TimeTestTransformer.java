@@ -1,4 +1,4 @@
-package com.devexperts.timetest;
+package com.devexperts.timetest.transformer;
 
 /*
  * #%L
@@ -34,7 +34,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.JSRInlinerAdapter;
-import org.objectweb.asm.commons.LocalVariablesSorter;
 import org.objectweb.asm.commons.TryCatchBlockSorter;
 import org.objectweb.asm.util.CheckClassAdapter;
 
@@ -45,20 +44,22 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.devexperts.timetest.TransformationUtils.ASM_API;
+import static com.devexperts.timetest.transformer.TransformationUtils.ASM_API;
 
-class TimeTestTransformer extends CachingClassFileTransformer {
+public class TimeTestTransformer extends CachingClassFileTransformer {
     private final List<Pattern> includes;
     private final List<Pattern> excludes;
     private final List<Pattern> testClassesPatterns;
+    private final List<Pattern> nonTestClassesPatterns;
     private final ClassInfoCache ciCache;
 
-    TimeTestTransformer(Configuration configuration, Log log, String agentVersion) {
+    public TimeTestTransformer(Configuration configuration, Log log, String agentVersion) {
         super(log, agentVersion);
         this.ciCache = new ClassInfoCache(log);
         includes = createPatterns(configuration.include());
         excludes = createPatterns(configuration.exclude());
-        testClassesPatterns = createPatterns(configuration.testClasses());
+        testClassesPatterns = createPatterns(configuration.testingCode());
+        nonTestClassesPatterns = createPatterns(configuration.nonTestingCode());
     }
 
     private List<Pattern> createPatterns(String[] strPatterns) {
@@ -73,7 +74,7 @@ class TimeTestTransformer extends CachingClassFileTransformer {
                 || className.startsWith("com/sun/")
                 || (className.startsWith("sun/") && !className.startsWith("sun/swing/") && !className.startsWith("sun/awt/"))
                 || className.startsWith("jdk/")
-                || (className.startsWith("java/") && !className.startsWith("java/util/concurrent/")))
+                || (className.startsWith("java/lang") && !className.equals("java/lang/Thread")))
         {
             return false;
         }
@@ -89,6 +90,10 @@ class TimeTestTransformer extends CachingClassFileTransformer {
         return testClassesPatterns.stream().anyMatch(p -> p.matcher(className).matches());
     }
 
+    private boolean inNonTestingCode(String className) {
+        return nonTestClassesPatterns.stream().anyMatch(p -> p.matcher(className).matches());
+    }
+
     @Override
     public byte[] transformImpl(ClassLoader loader, final String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain,
                             byte[] classfileBuffer) throws IllegalClassFormatException {
@@ -99,14 +104,22 @@ class TimeTestTransformer extends CachingClassFileTransformer {
         ciCache.getOrInitClassInfoMap(loader).put(className, cInfo);
         ClassWriter cw = new FrameClassWriter(loader, ciCache, cInfo.getVersion());
         boolean testClass = inTestingCode(className);
+        boolean nonTestClass = inNonTestingCode(className);
+        boolean testingCode = nonTestClass ? false : testClass;
         ClassVisitor cv = new ClassVisitor(ASM_API, cw) {
             @Override
             public MethodVisitor visitMethod(int access, String mname, String mdesc, String signature, String[] exceptions) {
                 MethodVisitor mv = super.visitMethod(access, mname, mdesc, signature, exceptions);
+                if (className.equals("java/lang/Thread")) {
+                    if (mname.equals("start"))
+                        return new ThreadStartTracer(new GeneratorAdapter(mv, access, mname, mdesc));
+                    else
+                        return mv;
+                }
                 mv = new JSRInlinerAdapter(mv, access, mname, mdesc, signature, exceptions);
                 mv = new ChangeTimeMethodsMethodTransformer(new GeneratorAdapter(mv, access, mname, mdesc));
-                if (testClass && !mname.equals("<init>") && !mname.equals("<cinit>")) {
-                    mv = new TestEnterPointsAdder(new GeneratorAdapter(mv, access, mname, mdesc));
+                if ((testClass || nonTestClass) && !mname.equals("<init>") && !mname.equals("<cinit>")) {
+                    mv = new EntryPointsAdder(testingCode, new GeneratorAdapter(mv, access, mname, mdesc));
                     mv = new TryCatchBlockSorter(mv, access, mname, mdesc, signature, exceptions);
                 }
                 return mv;

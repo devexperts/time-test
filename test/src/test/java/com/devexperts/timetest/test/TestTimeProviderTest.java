@@ -23,8 +23,6 @@ package com.devexperts.timetest.test;
  */
 
 
-import com.devexperts.timetest.Repeat;
-import com.devexperts.timetest.RepeatRule;
 import com.devexperts.timetest.TestTimeProvider;
 import com.devexperts.util.UnsafeHolder;
 import org.junit.After;
@@ -270,7 +268,7 @@ public class TestTimeProviderTest {
             }
         }, "TestThread");
         thread.start();
-        TestTimeProvider.waitUntilThreadsAreFrozen(200);
+        TestTimeProvider.waitUntilThreadsAreFrozen(1000);
         synchronized (owner) {
             UnsafeHolder.UNSAFE.unpark(thread);
             owner.wait(Long.MAX_VALUE);
